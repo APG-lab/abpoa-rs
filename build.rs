@@ -11,26 +11,30 @@ fn main ()
     // Tell Cargo that if the given file changes, to rerun this build script.
     println! ("cargo:rerun-if-changed=abPOA/src/abpoa.c");
 
-    process::Command::new ("git")
+    let sm_output = process::Command::new ("git")
         .args([
             "submodule",
             "update",
             "--init",
-            "--depth 1",
+            "--depth",
+            "1",
             "--recommend-shallow",
         ])
         .output ()
         .expect ("Failed to fetch git submodules!");
 
-    let base_path = PathBuf::from ("abPOA")
+    println! ("cargo:warning={}", format! ("git submodule stdout: {}", String::from_utf8 (sm_output.stdout).unwrap ()));
+    println! ("cargo:warning={}", format! ("git submodule stderr: {}", String::from_utf8 (sm_output.stderr).unwrap ()));
+
+    let base_path = PathBuf::from (env::current_dir ().unwrap ()).join ("abPOA")
         .canonicalize ()
         .expect ("cannot canonicalize base path");
 
-    fs::create_dir_all ("abPOA/lib")
+    fs::create_dir_all (format! ("{}/lib", base_path.display ()))
         .expect ("failed to create libdir");
 
     // This is the directory where the `c` library is located.
-    let libdir_path = PathBuf::from ("abPOA/lib")
+    let libdir_path = base_path.clone ().join ("lib")
         // Canonicalize the path as `rustc-link-search` requires an absolute
         // path.
         .canonicalize ()
@@ -49,14 +53,14 @@ fn main ()
 
     process::Command::new ("patch")
         .arg ("-p1")
-        .current_dir ("abPOA")
+        .current_dir (base_path.clone ())
         .stdin (pfile)
         .spawn ()
         .expect ("failed to patch abPOA");
 
     process::Command::new ("make")
         .arg ("clean")
-        .current_dir ("abPOA")
+        .current_dir (base_path.clone ())
         .spawn ()
         .expect ("failed to clean abPOA");
 
@@ -67,7 +71,7 @@ fn main ()
             .arg ("libabpoa")
             .env ("gdb", "1")
             .env ("debug", "1")
-            .current_dir ("abPOA")
+            .current_dir (base_path.clone ())
             .spawn ()
             .expect ("failed to build abPOA debug");
     }
@@ -76,7 +80,7 @@ fn main ()
         println! ("cargo:warning={}", "built release version of libabpoa");
         process::Command::new ("make")
             .arg ("libabpoa")
-            .current_dir ("abPOA")
+            .current_dir (base_path.clone ())
             .spawn ()
             .expect ("failed to build abPOA release");
     }
@@ -89,7 +93,7 @@ fn main ()
         // bindings for.
         .header ("src/main/c/appoa_wrapper.h")
         // Tell clang where the library is
-        .clang_arg("-IabPOA/src")
+        .clang_arg (format! ("-I{}/src", base_path.display ()))
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.
         .parse_callbacks (Box::new(CargoCallbacks))
