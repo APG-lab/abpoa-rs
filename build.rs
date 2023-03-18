@@ -25,6 +25,7 @@ fn main ()
 
     println! ("cargo:warning={}", format! ("git submodule stdout: {}", String::from_utf8 (sm_output.stdout).unwrap ()));
     println! ("cargo:warning={}", format! ("git submodule stderr: {}", String::from_utf8 (sm_output.stderr).unwrap ()));
+    println! ("cargo:warning={}", format! ("current_dir: '{}' out_dir: '{}'", env::current_dir ().unwrap ().display (), env::var ("OUT_DIR").unwrap ()));
 
     let base_path = PathBuf::from (env::current_dir ().unwrap ()).join ("abPOA")
         .canonicalize ()
