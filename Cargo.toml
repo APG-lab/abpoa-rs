@@ -3,6 +3,10 @@ name = "abpoa"
 version = "0.0.1"
 edition = "2021"
 
+[[bin]]
+name = "abpoa_check"
+path = "src/main/rust/main.rs"
+
 [lib]
 name = "abpoa"
 path = "src/main/rust/lib.rs"

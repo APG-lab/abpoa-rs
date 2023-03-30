@@ -2,11 +2,10 @@
 
 use log::debug;
 use std::io::Write;
-use std::os;
 
-mod abpoa;
+pub mod abpoa;
 mod file;
-mod helper;
+pub mod helper;
 
 
 pub fn reference_as_sequence_graph (name: String, sequence: String)
