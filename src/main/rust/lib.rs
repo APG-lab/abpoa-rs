@@ -54,7 +54,8 @@ mod tests
 
         let res: Result<(), helper::PublicError> = (|| {
             let sequence_graph_bytes = super::reference_as_sequence_graph (ref_name, ref_seq)?;
-            abpoa::fetch_sequence_graph_existing (sequence_graph_bytes, sequences);
+            let output = abpoa::fetch_sequence_graph_existing (sequence_graph_bytes, sequences, None, Some (1), true, true);
+            debug! ("output: {:?}", output);
             Ok (())
         })();
         match res

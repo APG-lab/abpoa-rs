@@ -18,6 +18,7 @@ use std::slice;
 #[derive(Clone,Debug)]
 pub struct Output
 {
+    pub cons: Option<String>,
     pub gfa: Option<String>,
     pub msa: Option<Vec<String>>
 }
@@ -105,12 +106,9 @@ pub fn render_msa (ab: *mut abpoa_t)
     unsafe {
         let abc: *const abpoa_cons_t = (*ab).abc;
         let s_slice = slice::from_raw_parts ((*abc).msa_base, (*abc).n_seq.try_into ().unwrap ());
-        debug! ("s_slice: {:?}", s_slice);
         for i in 0..(*abc).n_seq as usize
         {
-            debug! ("i: {} msa_len: {}", i, (*abc).msa_len);
             let a_slice = slice::from_raw_parts (&*s_slice[i], (*abc).msa_len.try_into ().unwrap ());
-            debug! ("a_slice: {:?}", a_slice);
             let sa = (0..((*abc).msa_len as usize)).map (|j|
             {
                 match &a_slice[j]
@@ -129,10 +127,10 @@ pub fn render_msa (ab: *mut abpoa_t)
     res
 }
 
-pub fn fetch_sequence_graph_existing (sequence_graph: Vec<u8>, sequences: Vec<String>, msa: bool, gfa: bool)
+pub fn fetch_sequence_graph_existing (sequence_graph: Vec<u8>, sequences: Vec<String>, weights: Option<Vec<Vec<os::raw::c_int>>>, cons: Option<os::raw::c_int>, msa: bool, gfa: bool)
     -> Result<Output, helper::PublicError>
 {
-    let mut res = Output { gfa: None, msa: None };
+    let mut res = Output { cons: None, gfa: None, msa: None };
     unsafe {
         
         let ab = abpoa_init ();
@@ -142,15 +140,23 @@ pub fn fetch_sequence_graph_existing (sequence_graph: Vec<u8>, sequences: Vec<St
 
         // output options
         (*abpt).set_out_msa (if msa { 1 } else { 0 }); // generate Row-Column multiple sequence alignment(RC-MSA), set 0 to disable
-        //(*abpt).set_out_msa (0); // generate Row-Column multiple sequence alignment(RC-MSA), set 0 to disable
-        (*abpt).set_out_cons (1); // generate consensus sequence, set 0 to disable
+        // generate consensus sequence, set 0 to disable
+        match cons
+        {
+            Some (max_n_cons @ 0) => (*abpt).set_out_cons (0),
+            Some (max_n_cons) => {
+                (*abpt).set_out_cons (1);
+                (*abpt).max_n_cons = max_n_cons;
+            },
+            None => (*abpt).set_out_cons (0)
+        };
+        (*abpt).set_use_qv (if let Some (_) = weights { 1 } else { 0 });
         (*abpt).w = 6;
         (*abpt).k = 9;
         (*abpt).min_w = 10; // minimizer-based seeding and partition
         (*abpt).set_progressive_poa (1);
         (*abpt).incr_fn = libc::strdup (sg.as_ptr ());
         (*abpt).set_out_gfa (if gfa { 1 } else { 0 }); // output final alignment graph in GFA format
-        //(*abpt).set_out_gfa (0); // output final alignment graph in GFA format
         abpoa_post_set_para (abpt);
 
         let n_seqs = sequences.len () as os::raw::c_int;
@@ -182,6 +188,22 @@ pub fn fetch_sequence_graph_existing (sequence_graph: Vec<u8>, sequences: Vec<St
             abpoa_generate_rc_msa (ab, abpt);
             res.msa = Some (render_msa (ab));
         }
+
+        match cons
+        {
+            Some (max_n_cons @ 0) => {},
+            Some (_) => {
+                debug! ("outputting cons");
+                let mut data_ptr: *mut libc::c_char = ptr::null_mut ();
+                let mut sizeloc: libc::size_t = 0;
+                let out_fp = libc::open_memstream (&mut data_ptr, &mut sizeloc);
+                abpoa_output_fx_consensus (ab, abpt, out_fp as *mut _IO_FILE);
+
+                let css = file::consume_stream_to_bytes (out_fp, &mut data_ptr, &mut sizeloc)?;
+                res.cons = Some (String::from_utf8 (css)?);
+            },
+            None => {}
+        };
 
         if (*abpt).out_gfa () != 0
         {

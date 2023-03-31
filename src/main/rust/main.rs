@@ -18,7 +18,7 @@ pub fn check_one ()
 
         let res: Result<(), helper::PublicError> = (|| {
             let sequence_graph_bytes = ::abpoa::reference_as_sequence_graph (ref_name, ref_seq)?;
-            let output = abpoa::fetch_sequence_graph_existing (sequence_graph_bytes, sequences, true, true)?;
+            let output = abpoa::fetch_sequence_graph_existing (sequence_graph_bytes, sequences, None, Some (1), true, true)?;
             debug! ("output: {:?}", output);
             Ok (())
         })();
